@@ -1,0 +1,67 @@
+NOXLAB VAULT CUSTOM LICENSE
+
+Copyright (c) 2026 noxian0 | https://github.com/noxian0/noxlab-vault
+
+All rights reserved unless permission is given in writing by the copyright
+holder.
+
+Permission is granted to use NOXLAB VAULT for personal, local, non-commercial
+purposes, at your own risk.
+
+You may not sell, resell, sublicense, rent, lease, include, bundle, or provide
+NOXLAB VAULT as part of any paid product, paid service, subscription,
+freemium product, commercial package, or monetized offering without explicit
+written permission from the copyright holder.
+
+You may not publish, redistribute, upload, mirror, rebrand, fork for public
+release, or share modified versions of NOXLAB VAULT without explicit written
+permission from the copyright holder.
+
+You may not modify NOXLAB VAULT for public release or distribution unless the
+copyright holder agrees to the modification and gives explicit written
+permission to publish it.
+
+DISCLAIMER OF RISK
+
+NOXLAB VAULT is provided "as is", without warranties or guarantees of any
+kind. Use it at your own risk.
+
+Improper use, software bugs, interrupted operations, storage failure, malware,
+hardware problems, operating system errors, weak passwords, lost passwords, or
+manual editing of vault files may cause file loss, vault corruption, or
+permanent data loss.
+
+The copyright holder is not responsible for lost files, corrupted vaults,
+lost passwords, data loss, damages, or any other consequences caused by using
+or misusing NOXLAB VAULT.
+
+ENCRYPTION AND SECURITY NOTICE
+
+NOXLAB VAULT uses existing cryptographic algorithms and third-party
+cryptographic libraries. The copyright holder does not own AES, GCM, Argon2id,
+PBKDF2, SHA-256, or the cryptographic libraries used by this project.
+
+NOXLAB VAULT is designed to protect local files when used correctly with a
+strong password, but no software can guarantee that encrypted files are
+uncrackable by every person, organization, tool, attack, or future technology.
+Security depends on many things, including password strength, computer
+security, software correctness, and whether an attacker has harmful access to
+the device.
+
+If the vault file stays on the user's own PC, the password is strong, and the
+PC is not accessed or compromised by someone with harmful intent, NOXLAB VAULT
+is intended to provide strong local protection.
+
+PASSWORD RECOVERY NOTICE
+
+NOXLAB VAULT does not include a backdoor, recovery key, admin override,
+master password, cloud account reset, or hidden access method.
+
+If the password is lost or forgotten, the copyright holder cannot open,
+unlock, recover, or decrypt the vault.
+
+TERMS ACCEPTANCE
+
+By downloading, installing, copying, running, modifying, or using NOXLAB VAULT
+in any way, you agree to this license and these terms of service. If you do
+not agree, do not use NOXLAB VAULT.
