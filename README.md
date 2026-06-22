@@ -54,9 +54,25 @@ Temporary plaintext files are deleted after locking or discarding. Secure deleti
 
 NOXLAB VAULT stores a local failed-attempt counter in the user's app data folder. After 5 wrong password or corrupted-vault failures for the same vault identity, Open and Verify are blocked for 5 hours, even if the app is closed and reopened. This lockout is an app-level safety feature and does not replace using a strong password.
 
+## Requirements
+
+This release is a Python app, not a standalone `.exe`.
+
+Before running `SETUP.cmd`, install Python 3.10 or newer from:
+
+https://www.python.org/downloads/windows/
+
+During Python installation, enable:
+
+```text
+Add python.exe to PATH
+```
+
+`SETUP.cmd` also needs internet access the first time it runs so `pip` can install the required packages from `requirements.txt`.
+
 ## How to Run on Windows
 
-1. Install Python 3.10 or newer.
+1. Install Python 3.10 or newer first. Make sure `Add python.exe to PATH` is enabled.
 2. Extract the NOXLAB VAULT release ZIP to a folder you want to keep.
 3. Run the setup script:
 
