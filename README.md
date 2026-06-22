@@ -15,6 +15,7 @@ It is local only. There is no account, no cloud sync, no remote server, and no i
 - Verify a vault password without extracting files.
 - Encrypts the whole archive as one blob, so filenames, folder names, and file contents are hidden.
 - Uses authenticated encryption so wrong passwords, edits, and corruption fail during decryption.
+- Blocks Open and Verify for 5 hours after 5 failed password attempts for the same vault identity.
 - Shows password strength feedback and clear password-loss warnings.
 - Cleans temporary plaintext files after locking or discarding an unlocked vault.
 
@@ -50,6 +51,8 @@ Malware or a compromised Windows account can still access files while they are u
 When a vault is unlocked for editing, its contents are temporarily decrypted on this PC so normal Windows apps can open and modify them. Use `Lock & Save Changes` to re-encrypt the updated workspace back into the vault. Use `Discard & Close` to close the temporary workspace without saving changes.
 
 Temporary plaintext files are deleted after locking or discarding. Secure deletion cannot be guaranteed on all drives, especially SSDs and journaled filesystems, but the app avoids keeping plaintext temporary files longer than needed and warns if cleanup fails.
+
+NOXLAB VAULT stores a local failed-attempt counter in the user's app data folder. After 5 wrong password or corrupted-vault failures for the same vault identity, Open and Verify are blocked for 5 hours, even if the app is closed and reopened. This lockout is an app-level safety feature and does not replace using a strong password.
 
 ## How to Run on Windows
 

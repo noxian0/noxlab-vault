@@ -13,6 +13,13 @@ from archive_utils import (
     validate_zip_bytes,
 )
 from crypto import CryptoConfigurationError, WrongPasswordOrCorruptVault, decrypt_vault_data, encrypt_archive_data
+from security_lockout import (
+    check_lockout,
+    format_blocked_until,
+    record_failure,
+    record_success,
+    vault_lockout_id,
+)
 
 
 APP_NAME = "NOXLAB VAULT"
@@ -131,11 +138,23 @@ def open_vault_flow(activity_log: ActivityLog) -> None:
     output_dir = _ask_output_folder()
 
     temp_dir: Path | None = None
+    vault_id: str | None = None
     try:
         vault_data = vault_path.read_bytes()
+        vault_id = vault_lockout_id(vault_data)
+        lockout_status = check_lockout(vault_id)
+        if lockout_status.blocked:
+            activity_log.add("vault unlock blocked")
+            print(
+                "Too many failed attempts. Open and Verify are blocked for this vault until "
+                f"{format_blocked_until(lockout_status.blocked_until)}."
+            )
+            return
+
         print("Decrypting vault...")
         archive_data = decrypt_vault_data(vault_data, password)
         validate_zip_bytes(archive_data)
+        record_success(vault_id)
 
         temp_dir = Path(tempfile.mkdtemp(prefix="noxvault_extract_"))
         archive_path = temp_dir / "payload.zip"
@@ -158,8 +177,21 @@ def open_vault_flow(activity_log: ActivityLog) -> None:
         activity_log.add("vault opened")
         print(f"Vault extracted. Restored {stats.files} file(s).")
     except WrongPasswordOrCorruptVault:
+        if vault_id is not None:
+            failure_status = record_failure(vault_id)
+            if failure_status.blocked:
+                activity_log.add("vault locked after failed attempts")
+                print(
+                    "Wrong password or corrupted vault.\n"
+                    "Too many failed attempts. Open and Verify are blocked for this vault until "
+                    f"{format_blocked_until(failure_status.blocked_until)}."
+                )
+                return
+
         activity_log.add("wrong password/corrupt vault")
         print("Wrong password or corrupted vault.")
+        if vault_id is not None:
+            print(f"Attempts remaining before 5-hour block: {failure_status.attempts_remaining}")
     except CryptoConfigurationError as exc:
         print(f"Crypto setup error: {exc}")
     except (ArchiveError, OSError) as exc:
@@ -173,17 +205,42 @@ def verify_vault_flow(activity_log: ActivityLog) -> None:
     print_panel("Verify Vault")
     vault_path = _ask_existing_file("Vault file", expected_suffix=VAULT_EXTENSION)
     password = getpass.getpass("Password: ")
+    vault_id: str | None = None
 
     try:
         vault_data = vault_path.read_bytes()
+        vault_id = vault_lockout_id(vault_data)
+        lockout_status = check_lockout(vault_id)
+        if lockout_status.blocked:
+            activity_log.add("vault verify blocked")
+            print(
+                "Too many failed attempts. Open and Verify are blocked for this vault until "
+                f"{format_blocked_until(lockout_status.blocked_until)}."
+            )
+            return
+
         print("Verifying vault...")
         archive_data = decrypt_vault_data(vault_data, password)
         validate_zip_bytes(archive_data)
+        record_success(vault_id)
         activity_log.add("vault verified")
         print("Vault verified successfully. No files were extracted.")
     except WrongPasswordOrCorruptVault:
+        if vault_id is not None:
+            failure_status = record_failure(vault_id)
+            if failure_status.blocked:
+                activity_log.add("vault locked after failed attempts")
+                print(
+                    "Wrong password or corrupted vault.\n"
+                    "Too many failed attempts. Open and Verify are blocked for this vault until "
+                    f"{format_blocked_until(failure_status.blocked_until)}."
+                )
+                return
+
         activity_log.add("wrong password/corrupt vault")
         print("Wrong password or corrupted vault.")
+        if vault_id is not None:
+            print(f"Attempts remaining before 5-hour block: {failure_status.attempts_remaining}")
     except CryptoConfigurationError as exc:
         print(f"Crypto setup error: {exc}")
     except (ArchiveError, OSError) as exc:
@@ -199,6 +256,7 @@ def show_security_notes() -> None:
         "Vault data is encrypted with AES-256-GCM.\n"
         "Argon2id is used for password key derivation when available.\n"
         "PBKDF2-HMAC-SHA256 is used as a fallback.\n"
+        "After 5 failed unlock/verify attempts, that vault is blocked for 5 hours.\n"
         "The password is required to unlock the vault.\n"
         "Forgotten passwords cannot be recovered.\n"
         "Weak passwords can be guessed.\n"

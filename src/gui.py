@@ -15,6 +15,13 @@ from archive_utils import (
     validate_zip_bytes,
 )
 from crypto import CryptoConfigurationError, WrongPasswordOrCorruptVault, decrypt_vault_data, encrypt_archive_data
+from security_lockout import (
+    check_lockout,
+    format_blocked_until,
+    record_failure,
+    record_success,
+    vault_lockout_id,
+)
 from ui import evaluate_password_strength
 
 
@@ -408,6 +415,9 @@ class NoxLabVaultApp(tk.Tk):
             "When a vault is unlocked for editing, its contents are temporarily decrypted "
             "on this PC so normal apps can open and modify the files. Lock & Save Changes "
             "re-encrypts the updated workspace back into the vault and cleans the temporary files.\n\n"
+            "After 5 wrong password or corrupted-vault failures for the same vault identity, "
+            "Open and Verify are blocked for 5 hours. The timer is stored locally and survives "
+            "closing and reopening the app.\n\n"
             "Forgotten passwords cannot be recovered. There is no backdoor, recovery key, "
             "or account reset.\n\n"
             "Weak passwords can be guessed. Use 16+ characters or a long passphrase.\n\n"
@@ -564,6 +574,7 @@ class NoxLabVaultApp(tk.Tk):
 
         password = self.open_password_var.get()
         temp_dir: Path | None = None
+        vault_id: str | None = None
         try:
             vault_path = self._normalize_vault_path(self.open_vault_var.get(), must_exist=True)
             if not password:
@@ -572,8 +583,14 @@ class NoxLabVaultApp(tk.Tk):
             self._set_busy(True)
             self._log("decrypting vault")
             vault_data = vault_path.read_bytes()
+            vault_id = vault_lockout_id(vault_data)
+            lockout_status = check_lockout(vault_id)
+            if lockout_status.blocked:
+                raise VaultLockedOutError(lockout_status.blocked_until)
+
             archive_data = decrypt_vault_data(vault_data, password)
             validate_zip_bytes(archive_data)
+            record_success(vault_id)
 
             temp_dir = Path(tempfile.mkdtemp(prefix="noxvault_extract_"))
             workspace_dir = temp_dir / "workspace"
@@ -602,8 +619,30 @@ class NoxLabVaultApp(tk.Tk):
                 "Vault unlocked for editing.\n\nOpen files from the list, save your edits in the editor, then use Lock & Save Changes.",
             )
         except WrongPasswordOrCorruptVault:
+            if vault_id is not None:
+                failure_status = record_failure(vault_id)
+                if failure_status.blocked:
+                    self._log("vault locked after failed attempts")
+                    messagebox.showerror(
+                        "Open blocked",
+                        "Wrong password or corrupted vault.\n\n"
+                        f"Too many failed attempts. Open and Verify are blocked for this vault until "
+                        f"{format_blocked_until(failure_status.blocked_until)}.",
+                    )
+                    return
+
             self._log("wrong password/corrupt vault")
-            messagebox.showerror("Open failed", "Wrong password or corrupted vault.")
+            message = "Wrong password or corrupted vault."
+            if vault_id is not None:
+                message += f"\n\nAttempts remaining before 5-hour block: {failure_status.attempts_remaining}"
+            messagebox.showerror("Open failed", message)
+        except VaultLockedOutError as exc:
+            self._log("vault unlock blocked")
+            messagebox.showerror(
+                "Open blocked",
+                f"Too many failed attempts. Open and Verify are blocked for this vault until "
+                f"{format_blocked_until(exc.blocked_until)}.",
+            )
         except CryptoConfigurationError as exc:
             messagebox.showerror("Crypto setup error", str(exc))
         except (ArchiveError, OSError, ValueError) as exc:
@@ -775,6 +814,7 @@ class NoxLabVaultApp(tk.Tk):
             return
 
         password = self.verify_password_var.get()
+        vault_id: str | None = None
         try:
             vault_path = self._normalize_vault_path(self.verify_vault_var.get(), must_exist=True)
             if not password:
@@ -783,14 +823,42 @@ class NoxLabVaultApp(tk.Tk):
             self._set_busy(True)
             self._log("verifying vault")
             vault_data = vault_path.read_bytes()
+            vault_id = vault_lockout_id(vault_data)
+            lockout_status = check_lockout(vault_id)
+            if lockout_status.blocked:
+                raise VaultLockedOutError(lockout_status.blocked_until)
+
             archive_data = decrypt_vault_data(vault_data, password)
             validate_zip_bytes(archive_data)
+            record_success(vault_id)
 
             self._log("vault verified")
             messagebox.showinfo("Vault verified", "Vault verified successfully. No files were extracted.")
         except WrongPasswordOrCorruptVault:
+            if vault_id is not None:
+                failure_status = record_failure(vault_id)
+                if failure_status.blocked:
+                    self._log("vault locked after failed attempts")
+                    messagebox.showerror(
+                        "Verify blocked",
+                        "Wrong password or corrupted vault.\n\n"
+                        f"Too many failed attempts. Open and Verify are blocked for this vault until "
+                        f"{format_blocked_until(failure_status.blocked_until)}.",
+                    )
+                    return
+
             self._log("wrong password/corrupt vault")
-            messagebox.showerror("Verify failed", "Wrong password or corrupted vault.")
+            message = "Wrong password or corrupted vault."
+            if vault_id is not None:
+                message += f"\n\nAttempts remaining before 5-hour block: {failure_status.attempts_remaining}"
+            messagebox.showerror("Verify failed", message)
+        except VaultLockedOutError as exc:
+            self._log("vault verify blocked")
+            messagebox.showerror(
+                "Verify blocked",
+                f"Too many failed attempts. Open and Verify are blocked for this vault until "
+                f"{format_blocked_until(exc.blocked_until)}.",
+            )
         except CryptoConfigurationError as exc:
             messagebox.showerror("Crypto setup error", str(exc))
         except (ArchiveError, OSError, ValueError) as exc:
@@ -1037,6 +1105,12 @@ def run_gui() -> None:
     _set_windows_app_id()
     app = NoxLabVaultApp()
     app.mainloop()
+
+
+class VaultLockedOutError(Exception):
+    def __init__(self, blocked_until: float | None) -> None:
+        super().__init__("Vault is locked out after too many failed attempts.")
+        self.blocked_until = blocked_until
 
 
 def _set_windows_app_id() -> None:
