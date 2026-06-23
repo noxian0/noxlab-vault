@@ -41,6 +41,8 @@ TEXT = "#f2f2f4"
 MUTED = "#aaaab3"
 BORDER = "#2b2b31"
 ENTRY = "#0f0f13"
+TITLE_BAR = "#1a1a1d"
+TITLE_BAR_BORDER = "#333338"
 
 ASCII_HEADER = r"""
  _   _  ___  __  __ _      _    ____     __     ___    _   _ _  _____
@@ -56,6 +58,7 @@ class NoxLabVaultApp(tk.Tk):
         super().__init__()
         self.title(APP_NAME)
         self._apply_window_icon()
+        self._apply_dark_title_bar()
         self.protocol("WM_DELETE_WINDOW", self.on_exit)
         self.geometry("1060x740")
         self.minsize(900, 650)
@@ -77,6 +80,7 @@ class NoxLabVaultApp(tk.Tk):
         self._build_activity_log()
         self.show_panel("create")
         self._update_unlocked_controls()
+        self.after(100, self._apply_dark_title_bar)
 
     def _apply_window_icon(self) -> None:
         if ICON_PATH.exists():
@@ -92,6 +96,51 @@ class NoxLabVaultApp(tk.Tk):
                 self.iconphoto(True, self._icon_photo)
             except tk.TclError:
                 pass
+
+    def _apply_dark_title_bar(self) -> None:
+        if sys.platform != "win32":
+            return
+
+        try:
+            import ctypes
+
+            hwnd = self.winfo_id()
+            if not hwnd:
+                return
+
+            enabled = ctypes.c_int(1)
+            for attribute in (20, 19):
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    hwnd,
+                    attribute,
+                    ctypes.byref(enabled),
+                    ctypes.sizeof(enabled),
+                )
+
+            for attribute, color in (
+                (35, TITLE_BAR),
+                (36, TEXT),
+                (34, TITLE_BAR_BORDER),
+            ):
+                colorref = ctypes.c_int(_hex_to_colorref(color))
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    hwnd,
+                    attribute,
+                    ctypes.byref(colorref),
+                    ctypes.sizeof(colorref),
+                )
+
+            ctypes.windll.user32.SetWindowPos(
+                hwnd,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0x0001 | 0x0002 | 0x0004 | 0x0020,
+            )
+        except Exception:
+            pass
 
     def _configure_grid(self) -> None:
         self.columnconfigure(0, weight=0)
@@ -1111,6 +1160,14 @@ class VaultLockedOutError(Exception):
     def __init__(self, blocked_until: float | None) -> None:
         super().__init__("Vault is locked out after too many failed attempts.")
         self.blocked_until = blocked_until
+
+
+def _hex_to_colorref(hex_color: str) -> int:
+    color = hex_color.lstrip("#")
+    red = int(color[0:2], 16)
+    green = int(color[2:4], 16)
+    blue = int(color[4:6], 16)
+    return red | (green << 8) | (blue << 16)
 
 
 def _set_windows_app_id() -> None:
